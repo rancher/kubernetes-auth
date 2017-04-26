@@ -16,7 +16,7 @@ const (
 	cattleUrlEnv = "CATTLE_URL"
 )
 
-type Provider struct{
+type Provider struct {
 	url string
 }
 
@@ -65,9 +65,9 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 
-	// TODO: only works for GitHub, maybe not even for that
+	// TODO: groups
 	for _, identity := range identityCollection.Data {
-		if identity.ExternalIdType == "github_user" {
+		if identity.ExternalIdType == "rancher_id" || identity.ExternalIdType == "github_user" {
 			return &k8sAuthentication.UserInfo{
 				Username: identity.Login,
 			}, nil
