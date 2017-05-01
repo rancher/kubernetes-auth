@@ -55,7 +55,8 @@ func main() {
 			if userInfo == nil {
 				return fmt.Errorf("Failed to evaluate token %s", evaluateToken)
 			}
-			fmt.Println(userInfo.Username)
+			fmt.Println("Username", userInfo.Username)
+			fmt.Println("Groups", userInfo.Groups)
 			return nil
 		}
 
