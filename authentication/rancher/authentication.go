@@ -13,11 +13,14 @@ import (
 )
 
 const (
-	cattleUrlEnv = "CATTLE_URL"
+	cattleUrlEnv          = "CATTLE_URL"
+	cattleUrlAccessKeyEnv = "CATTLE_ACCESS_KEY"
+	cattleUrlSecretKeyEnv = "CATTLE_SECRET_KEY"
 )
 
 type Provider struct {
-	url string
+	url    string
+	client *client.RancherClient
 }
 
 func NewProvider() (*Provider, error) {
@@ -25,9 +28,15 @@ func NewProvider() (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	rancherClient, err := client.NewRancherClient(&client.ClientOpts{
+		Url:       url,
+		AccessKey: os.Getenv(cattleUrlAccessKeyEnv),
+		SecretKey: os.Getenv(cattleUrlSecretKeyEnv),
+	})
 	return &Provider{
-		url: url,
-	}, nil
+		url:    url,
+		client: rancherClient,
+	}, err
 }
 
 func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
@@ -66,13 +75,47 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 	}
 
 	// TODO: groups
+	var tokenIdentity client.Identity
 	for _, identity := range identityCollection.Data {
-		if identity.ExternalIdType == "rancher_id" || identity.ExternalIdType == "github_user" {
-			return &k8sAuthentication.UserInfo{
-				Username: identity.Login,
-			}, nil
+		switch identity.ExternalIdType {
+		case "rancher_id":
+			fallthrough
+		case "github_user":
+			tokenIdentity = identity
 		}
 	}
 
-	return nil, nil
+	projectMembers, err := getCurrentEnvironmentMembers(p.client)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify that the user is actually a member of the environment
+	if _, ok := projectMembers[tokenIdentity.ExternalId]; !ok {
+		return nil, nil
+	}
+
+	return &k8sAuthentication.UserInfo{
+		Username: tokenIdentity.Login,
+	}, nil
+}
+
+func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[string]bool, error) {
+	projects, err := rancherClient.Project.List(&client.ListOpts{})
+	if err != nil {
+		return nil, err
+	}
+	projectMembers, err := rancherClient.ProjectMember.List(&client.ListOpts{
+		Filters: map[string]interface{}{
+			"projectId": projects.Data[0].Id,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	projectMembersMap := map[string]bool{}
+	for _, projectMember := range projectMembers.Data {
+		projectMembersMap[projectMember.ExternalId] = true
+	}
+	return projectMembersMap, nil
 }
