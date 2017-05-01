@@ -74,7 +74,6 @@ func reviewAuthentication(provider authentication.Provider, w http.ResponseWrite
 	if err != nil {
 		return nil, err
 	}
-
 	if userInfo == nil {
 		return unauthenticatedResponse, nil
 	}
@@ -86,6 +85,7 @@ func reviewAuthentication(provider authentication.Provider, w http.ResponseWrite
 			"authenticated": true,
 			"user": map[string]interface{}{
 				"username": userInfo.Username,
+				"groups":   userInfo.Groups,
 			},
 		},
 	}, nil

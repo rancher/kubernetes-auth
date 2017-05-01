@@ -90,17 +90,22 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 
-	// Verify that the user is actually a member of the environment
-	if _, ok := projectMembers[tokenIdentity.ExternalId]; !ok {
-		return nil, nil
+	userInfo := k8sAuthentication.UserInfo{
+		Username: tokenIdentity.Login,
 	}
 
-	return &k8sAuthentication.UserInfo{
-		Username: tokenIdentity.Login,
-	}, nil
+	// Verify that the user is actually a member of the environment
+	if projectMember, ok := projectMembers[tokenIdentity.ExternalId]; ok {
+		if projectMember.Role == "owner" {
+			userInfo.Groups = []string{"rancher-owner"}
+		}
+		return &userInfo, nil
+	}
+
+	return nil, nil
 }
 
-func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[string]bool, error) {
+func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[string]client.ProjectMember, error) {
 	projects, err := rancherClient.Project.List(&client.ListOpts{})
 	if err != nil {
 		return nil, err
@@ -113,9 +118,9 @@ func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[stri
 	if err != nil {
 		return nil, err
 	}
-	projectMembersMap := map[string]bool{}
+	projectMembersMap := map[string]client.ProjectMember{}
 	for _, projectMember := range projectMembers.Data {
-		projectMembersMap[projectMember.ExternalId] = true
+		projectMembersMap[projectMember.ExternalId] = projectMember
 	}
 	return projectMembersMap, nil
 }
