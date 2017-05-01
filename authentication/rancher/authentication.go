@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	cattleUrlEnv          = "CATTLE_URL"
-	cattleUrlAccessKeyEnv = "CATTLE_ACCESS_KEY"
-	cattleUrlSecretKeyEnv = "CATTLE_SECRET_KEY"
+	cattleURLEnv          = "CATTLE_URL"
+	cattleURLAccessKeyEnv = "CATTLE_ACCESS_KEY"
+	cattleURLSecretKeyEnv = "CATTLE_SECRET_KEY"
 )
 
 type Provider struct {
@@ -24,14 +24,14 @@ type Provider struct {
 }
 
 func NewProvider() (*Provider, error) {
-	url, err := client.NormalizeUrl(os.Getenv(cattleUrlEnv))
+	url, err := client.NormalizeUrl(os.Getenv(cattleURLEnv))
 	if err != nil {
 		return nil, err
 	}
 	rancherClient, err := client.NewRancherClient(&client.ClientOpts{
 		Url:       url,
-		AccessKey: os.Getenv(cattleUrlAccessKeyEnv),
-		SecretKey: os.Getenv(cattleUrlSecretKeyEnv),
+		AccessKey: os.Getenv(cattleURLAccessKeyEnv),
+		SecretKey: os.Getenv(cattleURLSecretKeyEnv),
 	})
 	return &Provider{
 		url:    url,
