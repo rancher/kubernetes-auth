@@ -16,6 +16,7 @@ const (
 	cattleURLEnv          = "CATTLE_URL"
 	cattleURLAccessKeyEnv = "CATTLE_ACCESS_KEY"
 	cattleURLSecretKeyEnv = "CATTLE_SECRET_KEY"
+	kubernetesMasterGroup = "system:masters"
 )
 
 type Provider struct {
@@ -44,6 +45,7 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 	if token == "admin" {
 		return &k8sAuthentication.UserInfo{
 			Username: "admin",
+			Groups:   []string{kubernetesMasterGroup},
 		}, nil
 	}
 
@@ -97,7 +99,7 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 	// Verify that the user is actually a member of the environment
 	if projectMember, ok := projectMembers[tokenIdentity.ExternalId]; ok {
 		if projectMember.Role == "owner" {
-			userInfo.Groups = []string{"rancher-owner"}
+			userInfo.Groups = []string{kubernetesMasterGroup}
 		}
 		return &userInfo, nil
 	}
