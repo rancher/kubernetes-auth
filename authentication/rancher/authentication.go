@@ -20,11 +20,12 @@ const (
 )
 
 type Provider struct {
-	url    string
-	client *client.RancherClient
+	url            string
+	client         *client.RancherClient
+	bootstrapToken string
 }
 
-func NewProvider() (*Provider, error) {
+func NewProvider(bootstrapToken string) (*Provider, error) {
 	url, err := client.NormalizeUrl(os.Getenv(cattleURLEnv))
 	if err != nil {
 		return nil, err
@@ -35,16 +36,20 @@ func NewProvider() (*Provider, error) {
 		SecretKey: os.Getenv(cattleURLSecretKeyEnv),
 	})
 	return &Provider{
-		url:    url,
-		client: rancherClient,
+		url:            url,
+		client:         rancherClient,
+		bootstrapToken: bootstrapToken,
 	}, err
 }
 
 func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
-	// TODO: remove this
-	if token == "admin" {
+	if token == "" {
+		return nil, nil
+	}
+
+	if token == p.bootstrapToken {
 		return &k8sAuthentication.UserInfo{
-			Username: "admin",
+			Username: "bootstrap",
 			Groups:   []string{kubernetesMasterGroup},
 		}, nil
 	}
