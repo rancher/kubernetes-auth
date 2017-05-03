@@ -48,7 +48,7 @@ func Authentication(provider authentication.Provider) func(w http.ResponseWriter
 			w.Write([]byte(err.Error()))
 			return
 		}
-		log.Infof("Authentication response: %s", string(response))
+		log.Debugf("Authentication response: %s", string(response))
 		w.Write(response)
 	}
 }
@@ -60,7 +60,7 @@ func reviewAuthentication(provider authentication.Provider, w http.ResponseWrite
 	}
 	defer r.Body.Close()
 
-	log.Infof("Authentication request: %s", string(body))
+	log.Debugf("Authentication request: %s", string(body))
 
 	var tokenReviewRequest k8sAuthentication.TokenReview
 	if err = json.Unmarshal(body, &tokenReviewRequest); err != nil {
