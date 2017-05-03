@@ -13,6 +13,8 @@ TAG=${TAG:-${VERSION}${SUFFIX}}
 REPO=${REPO:-rancher}
 
 cp ../bin/kubernetes-auth .
-docker build -t ${REPO}/kubernetes-auth:${TAG} .
 
-echo Built ${REPO}/kubernetes-auth:${TAG}
+IMAGE=${REPO}/kubernetes-auth:${TAG}
+docker build -t ${IMAGE} .
+echo ${IMAGE} > ../dist/images
+echo Built ${IMAGE}
