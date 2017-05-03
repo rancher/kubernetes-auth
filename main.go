@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/rancher/kubernetes-auth/authentication"
@@ -35,12 +37,22 @@ func main() {
 			log.SetLevel(log.DebugLevel)
 		}
 
+		bytes, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		bootstrapToken := strings.TrimSpace(string(bytes))
+
+		if bootstrapToken != "" {
+			log.Info("Bootstrap token read from stdin")
+		}
+
 		var provider authentication.Provider
 		if c.Bool("test-authentication") {
 			provider = &testauthentication.Provider{}
 		} else {
 			var err error
-			provider, err = rancherauthentication.NewProvider()
+			provider, err = rancherauthentication.NewProvider(bootstrapToken)
 			if err != nil {
 				return err
 			}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	k8sAuthentication "k8s.io/client-go/pkg/apis/authentication"
 
@@ -70,7 +71,9 @@ func reviewAuthentication(provider authentication.Provider, w http.ResponseWrite
 		return nil, fmt.Errorf("Unsupported API version %s", tokenReviewRequest.APIVersion)
 	}
 
-	userInfo, err := provider.Lookup(tokenReviewRequest.Spec.Token)
+	token := strings.TrimSpace(tokenReviewRequest.Spec.Token)
+
+	userInfo, err := provider.Lookup(token)
 	if err != nil {
 		return nil, err
 	}
