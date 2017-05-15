@@ -12,6 +12,7 @@ import (
 	"github.com/rancher/kubernetes-auth/authentication/rancher"
 	"github.com/rancher/kubernetes-auth/authentication/test"
 	"github.com/rancher/kubernetes-auth/handlers"
+	"github.com/rancher/kubernetes-auth/healthcheck"
 	"github.com/urfave/cli"
 )
 
@@ -30,6 +31,18 @@ func main() {
 		},
 		cli.StringFlag{
 			Name: "evaluate-token",
+		},
+		cli.IntFlag{
+			Name:   "authentication-webhook-port",
+			Value:  80,
+			Usage:  "Port to handle Kubernetes authentication webhook",
+			EnvVar: "AUTHENTICATION_WEBHOOK_PORT",
+		},
+		cli.IntFlag{
+			Name:   "health-check-port",
+			Value:  10240,
+			Usage:  "Port to configure an HTTP health check listener on",
+			EnvVar: "HEALTH_CHECK_PORT",
 		},
 	}
 	app.Action = func(c *cli.Context) error {
@@ -72,8 +85,20 @@ func main() {
 			return nil
 		}
 
-		http.HandleFunc("/", handlers.Authentication(provider))
-		return http.ListenAndServe(":80", nil)
+		resultChan := make(chan error)
+
+		go func(rc chan error) {
+			http.HandleFunc("/", handlers.Authentication(provider))
+			port := c.Int("authentication-webhook-port")
+			rc <- http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+		}(resultChan)
+
+		go func(rc chan error) {
+			port := c.Int("health-check-port")
+			rc <- healthcheck.Start(port)
+		}(resultChan)
+
+		return <-resultChan
 	}
 
 	if err := app.Run(os.Args); err != nil {
