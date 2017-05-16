@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM rancher/agent-base:v0.3.0
 
 RUN apt-get update -y \
     && apt-get install -y wget curl jq unzip
