@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 while ! curl -s -f http://rancher-metadata/2015-12-19/stacks/Kubernetes/services/kubernetes/uuid; do
     echo Waiting for metadata
