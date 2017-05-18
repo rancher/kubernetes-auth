@@ -3,6 +3,7 @@ package rancherauthentication
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -63,7 +64,7 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 	httpClient := &http.Client{
 		Timeout: time.Second * 30,
 	}
-	// TODO: make sure this URL is always formatted correctly
+
 	req, err := http.NewRequest("GET", p.url+"/identity", nil)
 	req.Header.Add("Authorization", token)
 	resp, err := httpClient.Do(req)
@@ -81,35 +82,51 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 
-	// TODO: groups
-	var tokenIdentity client.Identity
-	for _, identity := range identityCollection.Data {
-		switch identity.ExternalIdType {
-		case "rancher_id":
-			fallthrough
-		case "github_user":
-			tokenIdentity = identity
-		}
-	}
+	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
 
 	projectMembers, err := getCurrentEnvironmentMembers(p.client)
 	if err != nil {
 		return nil, err
 	}
 
-	userInfo := k8sAuthentication.UserInfo{
-		Username: tokenIdentity.Login,
-	}
-
 	// Verify that the user is actually a member of the environment
-	if projectMember, ok := projectMembers[tokenIdentity.ExternalId]; ok {
+	if projectMember, ok := projectMembers[userInfo.UID]; ok {
+		// Owners of an environment should be authenticated with the masters group
 		if projectMember.Role == "owner" {
-			userInfo.Groups = []string{kubernetesMasterGroup}
+			userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
 		}
 		return &userInfo, nil
 	}
 
 	return nil, nil
+}
+
+func getUserInfoFromIdentityCollection(collection *client.IdentityCollection) k8sAuthentication.UserInfo {
+	var rancherIdentity client.Identity
+	var otherIdentity client.Identity
+	var groups []string
+	for _, identity := range collection.Data {
+		if identity.User {
+			if identity.ExternalIdType == "rancher_id" {
+				rancherIdentity = identity
+			} else {
+				otherIdentity = identity
+			}
+		} else {
+			groups = append(groups, fmt.Sprintf("%s:%s", identity.ExternalIdType, identity.Login))
+		}
+	}
+
+	identity := otherIdentity
+	if identity.Id == "" && rancherIdentity.Id != "" {
+		identity = rancherIdentity
+	}
+
+	return k8sAuthentication.UserInfo{
+		Username: identity.Login,
+		UID:      identity.Id,
+		Groups:   groups,
+	}
 }
 
 func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[string]client.ProjectMember, error) {
@@ -127,7 +144,7 @@ func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[stri
 	}
 	projectMembersMap := map[string]client.ProjectMember{}
 	for _, projectMember := range projectMembers.Data {
-		projectMembersMap[projectMember.ExternalId] = projectMember
+		projectMembersMap[projectMember.Id] = projectMember
 	}
 	return projectMembersMap, nil
 }
