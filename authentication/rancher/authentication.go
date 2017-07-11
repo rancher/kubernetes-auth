@@ -3,7 +3,6 @@ package rancherauthentication
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -98,23 +97,22 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 
-	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
-
-	projectMembers, err := getCurrentEnvironmentMembers(p.client)
+	environmentIdentities, err := getEnvironmentIdentities(p.client)
 	if err != nil {
 		return nil, err
 	}
 
-	// Verify that the user is actually a member of the environment
-	if projectMember, ok := projectMembers[userInfo.UID]; ok {
-		// Owners of an environment should be authenticated with the masters group
-		if projectMember.Role == "owner" {
-			userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
-		}
-		return &userInfo, nil
+	authenticated, master := shouldBeAuthenticated(identityCollection, environmentIdentities)
+	if !authenticated {
+		return nil, nil
 	}
 
-	return nil, nil
+	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
+	if master {
+		userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
+	}
+
+	return &userInfo, nil
 }
 
 func (p *Provider) authDisabled() bool {
@@ -140,52 +138,4 @@ func (p *Provider) authDisabled() bool {
 	}
 
 	return setting.Value == "false"
-}
-
-func getUserInfoFromIdentityCollection(collection *client.IdentityCollection) k8sAuthentication.UserInfo {
-	var rancherIdentity client.Identity
-	var otherIdentity client.Identity
-	var groups []string
-	for _, identity := range collection.Data {
-		if identity.User {
-			if identity.ExternalIdType == "rancher_id" {
-				rancherIdentity = identity
-			} else {
-				otherIdentity = identity
-			}
-		} else {
-			groups = append(groups, fmt.Sprintf("%s:%s", identity.ExternalIdType, identity.Login))
-		}
-	}
-
-	identity := otherIdentity
-	if identity.Id == "" && rancherIdentity.Id != "" {
-		identity = rancherIdentity
-	}
-
-	return k8sAuthentication.UserInfo{
-		Username: identity.Login,
-		UID:      identity.Id,
-		Groups:   groups,
-	}
-}
-
-func getCurrentEnvironmentMembers(rancherClient *client.RancherClient) (map[string]client.ProjectMember, error) {
-	projects, err := rancherClient.Project.List(&client.ListOpts{})
-	if err != nil {
-		return nil, err
-	}
-	projectMembers, err := rancherClient.ProjectMember.List(&client.ListOpts{
-		Filters: map[string]interface{}{
-			"projectId": projects.Data[0].Id,
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	projectMembersMap := map[string]client.ProjectMember{}
-	for _, projectMember := range projectMembers.Data {
-		projectMembersMap[projectMember.Id] = projectMember
-	}
-	return projectMembersMap, nil
 }
