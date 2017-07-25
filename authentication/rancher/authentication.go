@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/rancher/go-rancher/v2"
 	k8sAuthentication "k8s.io/client-go/pkg/apis/authentication"
 )
@@ -54,7 +55,10 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, nil
 	}
 
+	log.Debugf("Raw token: %s", token)
+
 	if token == p.bootstrapToken {
+		log.Debug("Raw token is the same as bootstrap token")
 		return &k8sAuthentication.UserInfo{
 			Username: bootstrapUser,
 			Groups:   []string{kubernetesMasterGroup},
@@ -62,6 +66,7 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 	}
 
 	if p.authDisabled() {
+		log.Debug("Detected that auth is disabled")
 		return &k8sAuthentication.UserInfo{
 			Username: adminUser,
 			Groups:   []string{kubernetesMasterGroup},
@@ -73,6 +78,8 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 	token = string(decodedTokenBytes)
+
+	log.Debugf("Decoded token: %s", token)
 
 	req, err := http.NewRequest("GET", p.url+"/identity", nil)
 	if err != nil {
@@ -104,12 +111,16 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 
 	authenticated, master := shouldBeAuthenticated(identityCollection, environmentIdentities)
 	if !authenticated {
+		log.Debug("Not authenticated")
 		return nil, nil
 	}
 
 	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
 	if master {
+		log.Debug("Authenticated as master")
 		userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
+	} else {
+		log.Debug("Not authenticated as master")
 	}
 
 	return &userInfo, nil

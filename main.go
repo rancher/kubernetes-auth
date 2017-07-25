@@ -47,6 +47,7 @@ func main() {
 	}
 	app.Action = func(c *cli.Context) error {
 		if c.Bool("debug") {
+			log.Warn("All tokens will be logged when in debug mode")
 			log.SetLevel(log.DebugLevel)
 		}
 
@@ -58,6 +59,7 @@ func main() {
 
 		if bootstrapToken != "" {
 			log.Info("Bootstrap token read from stdin")
+			log.Debugf("Bootstrap token: %s", bootstrapToken)
 		}
 
 		var provider authentication.Provider
