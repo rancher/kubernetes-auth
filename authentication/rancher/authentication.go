@@ -104,23 +104,34 @@ func (p *Provider) Lookup(token string) (*k8sAuthentication.UserInfo, error) {
 		return nil, err
 	}
 
-	environmentIdentities, err := getEnvironmentIdentities(p.client)
+	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
+
+	isAdmin, err := p.isAdmin(token)
 	if err != nil {
 		return nil, err
 	}
 
-	authenticated, master := shouldBeAuthenticated(identityCollection, environmentIdentities)
-	if !authenticated {
-		log.Debug("Not authenticated")
-		return nil, nil
-	}
-
-	userInfo := getUserInfoFromIdentityCollection(&identityCollection)
-	if master {
-		log.Debug("Authenticated as master")
+	if isAdmin {
+		log.Debug("Authenticated as master (admin)")
 		userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
 	} else {
-		log.Debug("Not authenticated as master")
+		environmentIdentities, err := getEnvironmentIdentities(p.client)
+		if err != nil {
+			return nil, err
+		}
+
+		authenticated, master := shouldBeAuthenticated(identityCollection, environmentIdentities)
+		if !authenticated {
+			log.Debug("Not authenticated")
+			return nil, nil
+		}
+
+		if master {
+			log.Debug("Authenticated as master (owner)")
+			userInfo.Groups = append(userInfo.Groups, kubernetesMasterGroup)
+		} else {
+			log.Debug("Not authenticated as master")
+		}
 	}
 
 	return &userInfo, nil
@@ -149,4 +160,37 @@ func (p *Provider) authDisabled() bool {
 	}
 
 	return setting.Value == "false"
+}
+
+func (p *Provider) isAdmin(token string) (bool, error) {
+	req, err := http.NewRequest("GET", p.url+"/accounts", nil)
+	if err != nil {
+		return false, err
+	}
+
+	req.Header.Add("Authorization", token)
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false, err
+	}
+
+	var accountCollection client.AccountCollection
+	if err = json.Unmarshal(data, &accountCollection); err != nil {
+		return false, err
+	}
+
+	for _, account := range accountCollection.Data {
+		if account.Kind == "admin" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
